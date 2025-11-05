@@ -53,10 +53,21 @@ const NOTIFICATION_MESSAGES = {
   }
 };
 
+function getTranslationsFromNode(node) {
+  const trans = {};
+  if (Array.isArray(node.translation)) {
+    node.translation.forEach(t => {
+      if (t.locale && t.title !== undefined) {
+        trans[t.locale] = t.title;
+      }
+    });
+  }
+  return trans;
+}
+
 export const useTreeStore = defineStore('tree', {
   state: () => ({
     nodes: [],
-    translations: {},
     currentLanguage: 'es_ES',
     locales: [],
     expandedNodes: {},
@@ -87,7 +98,10 @@ export const useTreeStore = defineStore('tree', {
       try {
         const response = await api.get('/nodes');
         console.log('response fetchRootNodes: ', response);
-        this.nodes = response.data;
+        this.nodes = response.data.map(node => ({
+          ...node,
+          translations: getTranslationsFromNode(node)
+        }));
       } catch (err) {
         this.error = err.message || 'Failed to load root nodes';
       } finally {
@@ -99,7 +113,10 @@ export const useTreeStore = defineStore('tree', {
       this.loading = true;
       try {
         const response = await api.get(`/nodes?parent=${parentId}`);
-        return response.data;
+        return response.data.map(node => ({
+          ...node,
+          translations: getTranslationsFromNode(node)
+        }));
       } catch (err) {
         this.error = err.message || 'Failed to load children';
         return [];
@@ -119,6 +136,7 @@ export const useTreeStore = defineStore('tree', {
     async createNode(nodeData) {
       try {
         const response = await api.post('/node', nodeData);
+        console.log('response createNode: ', response);
         this.showNotification(this.getNotificationText('nodeCreatedSuccess'), 'success');
         return true;
       } catch (err) {
@@ -144,7 +162,6 @@ export const useTreeStore = defineStore('tree', {
         delete this.nodeChildren[id];
 
         this.showNotification(this.getNotificationText('nodeDeletedSuccess'), 'success');
-
         return true;
       } catch (err) {
         let message = 'Failed to delete node.';
@@ -168,20 +185,12 @@ export const useTreeStore = defineStore('tree', {
     },
 
     getNodeTitle(node) {
-      const trans = this.translations[node.id] || {};
+      if (!node) return 'Untitled';
+      const trans = node.translations || {};
       if (trans[this.currentLanguage] != null) {
         return trans[this.currentLanguage];
       }
       return trans.en_US || node.title || 'Untitled';
-    },
-
-    async fetchTranslations() {
-      try {
-        const response = await api.get('/locales');
-        this.translations = response.data;
-      } catch (err) {
-        console.warn('Could not load translations');
-      }
     },
 
     toggleNode(nodeId) {
@@ -198,7 +207,10 @@ export const useTreeStore = defineStore('tree', {
     async loadChildren(nodeId) {
       try {
         const response = await api.get(`/nodes?parent=${nodeId}`);
-        const children = Array.isArray(response.data) ? response.data : [];
+        const children = Array.isArray(response.data) ? response.data.map(node => ({
+          ...node,
+          translations: getTranslationsFromNode(node)
+        })) : [];
         this.nodeChildren[nodeId] = children;
       } catch (err) {
         // 404 "no hay hijos"
@@ -234,7 +246,6 @@ export const useTreeStore = defineStore('tree', {
         return NOTIFICATION_MESSAGES[key][lang];
       }
 
-      // Fallback a inglés
       return NOTIFICATION_MESSAGES[key]?.[fallbackLang] || `Missing translation for ${key}`;
     },
 

@@ -89,7 +89,6 @@ const rootLocales = computed(() => store.locales)
 onMounted(async () => {
   await store.fetchLocales()
   await store.fetchRootNodes()
-  await store.fetchTranslations()
 })
 
 async function createRoot() {
